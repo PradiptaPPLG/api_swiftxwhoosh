@@ -15,7 +15,7 @@ if (empty($email) || empty($password)) {
 }
 
 $query = "SELECT * FROM users WHERE email = $1";
-$result = pg_query_params($dbconn, $query, array($email));
+$result = pg_query_params($conn, $query, array($email));
 $user = pg_fetch_assoc($result);
 
 if ($user && password_verify($password, $user['password_hash'])) {

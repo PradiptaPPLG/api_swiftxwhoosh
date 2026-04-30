@@ -1,0 +1,8 @@
+<?php
+include 'connection.php';
+$query = "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'booking_passengers'";
+$result = pg_query($conn, $query);
+while ($row = pg_fetch_assoc($result)) {
+    echo $row['column_name'] . ": " . $row['data_type'] . "\n";
+}
+?>

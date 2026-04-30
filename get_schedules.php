@@ -23,9 +23,9 @@ $query = "SELECT
 // Jika ada filter origin & destination
 if (!empty($origin) && !empty($destination)) {
     $query .= " WHERE st1.station_name = $1 AND st2.station_name = $2";
-    $result = pg_query_params($dbconn, $query, array($origin, $destination));
+    $result = pg_query_params($conn, $query, array($origin, $destination));
 } else {
-    $result = pg_query($dbconn, $query);
+    $result = pg_query($conn, $query);
 }
 
 if ($result) {

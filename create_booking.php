@@ -11,7 +11,12 @@ if (!$data) {
 }
 
 $booking_code = $data['booking_code'] ?? '';
-$user_id = $data['user_id'] ?? 1; // Default ke 1 jika belum ada sistem login user_id
+$user_id = $data['user_id'] ?? null;
+
+if (!$user_id) {
+    echo json_encode(["status" => "error", "message" => "User ID wajib diisi. Silakan login kembali."]);
+    exit;
+}
 $schedule_id = $data['schedule_id'] ?? 0;
 $total_price = $data['total_price'] ?? 0;
 $passengers = $data['passengers'] ?? [];

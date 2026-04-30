@@ -19,7 +19,7 @@ if (empty($full_name) || empty($email) || empty($phone) || empty($password)) {
 $hashed_password = password_hash($password, PASSWORD_DEFAULT);
 
 $query = "INSERT INTO users (full_name, email, phone, password_hash) VALUES ($1, $2, $3, $4)";
-$result = pg_query_params($dbconn, $query, array($full_name, $email, $phone, $hashed_password));
+$result = pg_query_params($conn, $query, array($full_name, $email, $phone, $hashed_password));
 
 if ($result) {
     ob_clean();
