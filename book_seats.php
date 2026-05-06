@@ -3,53 +3,49 @@ include 'connection.php';
 header('Content-Type: application/json');
 
 $data = json_decode(file_get_contents("php://input"), true);
+
 if (!$data) {
-    echo json_encode(["status" => "error", "message" => "Invalid JSON input"]);
+    echo json_encode(["status" => "error", "message" => "Invalid input"]);
     exit;
 }
 
-$user_id = $data['user_id'] ?? null;
-
-if (!$user_id) {
-    echo json_encode(["status" => "error", "message" => "User ID is required. Please login again."]);
-    exit;
-}
-$schedule_id = $data['schedule_id'] ?? 0;
-$coach_id = $data['coach_id'] ?? '';
-$seats = $data['seats'] ?? [];
-$total_price = $data['total_price'] ?? 0;
-
-if (empty($seats)) {
-    echo json_encode(["status" => "error", "message" => "No seats selected"]);
-    exit;
-}
-
-pg_query($conn, "BEGIN");
+$user_id = $data['user_id'];
+$schedule_id = $data['schedule_id'];
+$total_price = $data['total_price'];
+$passenger_names = $data['passenger_names']; 
+$seats = $data['seats'];
+$booking_code = "SWIFT-" . strtoupper(substr(md5(time() . $user_id), 0, 8));
 
 try {
-    $booking_code = "SWIFT-" . strtoupper(substr(md5(time() . $user_id), 0, 8));
+    pg_query($conn, "BEGIN");
 
     // 1. Insert ke bookings
-    $q_booking = "INSERT INTO bookings (user_id, schedule_id, booking_code, total_price, status) 
-                  VALUES ($1, $2, $3, $4, 'paid') RETURNING booking_id";
-    $res_b = pg_query_params($conn, $q_booking, array($user_id, $schedule_id, $booking_code, $total_price));
+    $query_booking = "INSERT INTO bookings (user_id, schedule_id, booking_code, total_price, status, booking_date) 
+                      VALUES ($1, $2, $3, $4, 'pending', NOW()) RETURNING booking_id";
+    $result_booking = pg_query_params($conn, $query_booking, array($user_id, $schedule_id, $booking_code, $total_price));
     
-    if (!$res_b) throw new Exception("Tabel bookings error: " . pg_last_error($conn));
+    if (!$result_booking) throw new Exception("Gagal membuat booking: " . pg_last_error($conn));
     
-    $booking_id = pg_fetch_assoc($res_b)['booking_id'];
+    $booking_id = pg_fetch_result($result_booking, 0, 0);
 
-    // 2. Insert ke booking_passengers
-    foreach ($seats as $seat_str) {
-        // Skema tabel: full_name (bukan passenger_name). seat_id adalah integer, tapi Android kirim string "1A".
-        // Simpan dengan format "Passenger [coach_id]-[seat_str]" agar get_seats.php bisa membedakan antar gerbong
-        $q_p = "INSERT INTO booking_passengers (booking_id, full_name) VALUES ($1, $2)";
-        $res_p = pg_query_params($conn, $q_p, array($booking_id, "Passenger " . $coach_id . "-" . $seat_str));
-        
-        if (!$res_p) throw new Exception("Tabel booking_passengers error: " . pg_last_error($conn));
+    // 2. Insert detail penumpang + NOMOR KURSI (Format: "Passenger CoachID-SeatID")
+    foreach ($passenger_names as $index => $name) {
+        $seat = $seats[$index] ?? "N/A";
+        $coach_id = $data['coach_id'] ?? "01"; 
+        $entry_name = "Passenger " . $coach_id . "-" . $seat; 
+        $query_p = "INSERT INTO booking_passengers (booking_id, full_name) VALUES ($1, $2)";
+        $res_p = pg_query_params($conn, $query_p, array($booking_id, $entry_name));
+        if (!$res_p) throw new Exception("Gagal simpan data penumpang");
     }
 
     pg_query($conn, "COMMIT");
-    echo json_encode(["status" => "success", "message" => "Booking Success", "code" => $booking_code]);
+
+    echo json_encode([
+        "status" => "success", 
+        "message" => "Booking created (Pending)", 
+        "booking_id" => $booking_id,
+        "booking_code" => $booking_code
+    ]);
 
 } catch (Exception $e) {
     pg_query($conn, "ROLLBACK");

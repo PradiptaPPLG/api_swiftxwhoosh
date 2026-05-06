@@ -1,29 +1,48 @@
 <?php
+include 'connection.php';
 header('Content-Type: application/json');
-require_once 'connection.php';
 
-$data = json_decode(file_get_contents('php://input'), true);
+$data = json_decode(file_get_contents("php://input"), true);
+$booking_id = $data['booking_id'];
+$new_schedule_id = $data['new_schedule_id'];
+$new_seats = $data['seats']; // Array of new seats: ["1A", "1B"]
+$passenger_names = $data['passenger_names']; // To maintain continuity
 
-if (!$data || !isset($data['booking_code']) || !isset($data['new_date'])) {
-    echo json_encode(["status" => "error", "message" => "Data tidak lengkap"]);
+if (!$booking_id || !$new_schedule_id) {
+    echo json_encode(["status" => "error", "message" => "Missing parameters"]);
     exit;
 }
 
-$booking_code = $data['booking_code'];
-$new_date = $data['new_date'];
+try {
+    pg_query($conn, "BEGIN");
 
-// Update status and potentially the date
-// Note: In this schema, we might just update the status to 'rescheduled' 
-// and keep the new date in a separate column or just rely on the email confirmation for now
-// if the schedules table doesn't support ad-hoc date overrides per booking.
-// However, to make it show up in Admin, we'll try to update the booking.
+    // 1. Update Booking dengan Jadwal Baru
+    $query_update = "UPDATE bookings SET schedule_id = $1, status = 'paid' WHERE booking_id = $2";
+    $result_update = pg_query_params($conn, $query_update, array($new_schedule_id, $booking_id));
 
-$query = "UPDATE bookings SET status = 'rescheduled' WHERE booking_code = $1";
-$result = pg_query_params($dbconn, $query, array($booking_code));
+    if (!$result_update) throw new Exception("Gagal update jadwal booking");
 
-if ($result && pg_affected_rows($result) > 0) {
-    echo json_encode(["status" => "success", "message" => "Booking status updated to rescheduled"]);
-} else {
-    echo json_encode(["status" => "error", "message" => "Booking tidak ditemukan"]);
+    // 2. Hapus kursi lama
+    $query_delete = "DELETE FROM booking_passengers WHERE booking_id = $1";
+    pg_query_params($conn, $query_delete, array($booking_id));
+
+    // 3. Masukkan kursi baru (Format: Passenger Gerbong-Seat)
+    foreach ($new_seats as $index => $seat) {
+        $coach_id = $data['coach_id'] ?? "01";
+        $entry_name = "Passenger " . $coach_id . "-" . $seat; 
+        $query_p = "INSERT INTO booking_passengers (booking_id, full_name) VALUES ($1, $2)";
+        pg_query_params($conn, $query_p, array($booking_id, $entry_name));
+    }
+
+    pg_query($conn, "COMMIT");
+
+    echo json_encode([
+        "status" => "success",
+        "message" => "Reschedule successful. New schedule and seats assigned."
+    ]);
+
+} catch (Exception $e) {
+    pg_query($conn, "ROLLBACK");
+    echo json_encode(["status" => "error", "message" => $e->getMessage()]);
 }
 ?>

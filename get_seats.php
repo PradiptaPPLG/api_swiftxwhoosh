@@ -12,7 +12,7 @@ $schedule_id = $_GET['schedule_id'] ?? 0;
 $query_booked = "SELECT SUBSTRING(bp.full_name FROM 11) AS seat_str 
                  FROM booking_passengers bp 
                  JOIN bookings b ON bp.booking_id = b.booking_id 
-                 WHERE b.schedule_id = $1 AND b.status = 'paid' AND bp.full_name LIKE 'Passenger %'";
+                 WHERE b.schedule_id = $1 AND b.status IN ('paid', 'pending') AND bp.full_name LIKE 'Passenger %'";
 
 $booked_result = pg_query_params($conn, $query_booked, array($schedule_id));
 
